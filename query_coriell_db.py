@@ -12,6 +12,7 @@ import sqlite3
 import argparse
 import os
 import sys
+import json
 
 app = Flask(__name__)
 
@@ -36,6 +37,15 @@ def format_markdown(data, columns):
     if value is not None:  # Omit fields with null/None values
       markdown += f"## {col}\n\n{value}\n\n"
   return markdown
+
+
+# JSON formatting
+def format_json(data, columns):
+  if not data:
+    return json.dumps({"error": "No data available."}, indent=2)
+
+  result = {columns[i]: value for i, value in enumerate(data[0]) if value is not None}
+  return json.dumps(result, indent=2)
 
 
 # HTML formatting
@@ -87,7 +97,7 @@ def query():
     return render_template_string(html_template, content=format_html(data, columns))
 
 
-def run_query_from_command_line(db_path, query):
+def run_query_from_command_line(db_path, query, output_format):
   connection = sqlite3.connect(db_path)
   cursor = connection.cursor()
 
@@ -105,7 +115,10 @@ def run_query_from_command_line(db_path, query):
     print("No data found for the given query.")
     sys.exit(1)
 
-  print(format_markdown(data, columns))
+  if output_format == "json":
+    print(format_json(data, columns))
+  else:  # Default to markdown
+    print(format_markdown(data, columns))
 
 
 def main():
@@ -123,7 +136,13 @@ def main():
   )
   parser.add_argument(
     "--query",
-    help="Run a query directly on the database and print the result as Markdown.",
+    help="Run a query directly on the database and print the result.",
+  )
+  parser.add_argument(
+    "--output",
+    choices=["markdown", "json"],
+    default="markdown",
+    help="Output format for direct query mode (default: markdown).",
   )
 
   # Parse arguments
@@ -136,7 +155,7 @@ def main():
 
   if args.query:
     # Run the query directly and exit
-    run_query_from_command_line(args.db_path, args.query)
+    run_query_from_command_line(args.db_path, args.query, args.output)
   else:
     # Set the database path in the app configuration
     app.config["DATABASE_PATH"] = args.db_path
